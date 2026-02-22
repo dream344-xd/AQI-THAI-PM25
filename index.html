@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TH Air Quality</title>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+body{
+font-family:Prompt,sans-serif;
+background:#0f2027;
+color:#fff;
+display:flex;
+justify-content:center;
+align-items:center;
+height:100vh;
+margin:0;
+transition:.4s;
+}
+
+.app{
+width:380px;
+background:#1b263b;
+padding:20px;
+border-radius:25px;
+box-shadow:0 0 30px rgba(0,0,0,.4);
+text-align:center;
+}
+
+select{
+width:100%;
+padding:12px;
+border-radius:12px;
+border:none;
+margin-bottom:15px;
+font-size:16px;
+}
+
+.aqi{font-size:70px;font-weight:bold;}
+.icon{font-size:42px;}
+
+.bar{
+height:18px;
+border-radius:10px;
+background:linear-gradient(to right,green,yellow,orange,red,purple,brown);
+position:relative;
+margin:15px 0;
+}
+
+.marker{
+width:4px;
+height:18px;
+background:#fff;
+position:absolute;
+}
+
+canvas{margin-top:15px;}
+</style>
+</head>
+
+<body>
+
+<div class="app">
+
+<h3>🌏 คุณภาพอากาศประเทศไทย</h3>
+
+<select id="province">
+<option value="13.756,100.501">กรุงเทพมหานคร</option>
+<option value="13.599,100.599">สมุทรปราการ</option>
+<option value="18.788,98.985">เชียงใหม่</option>
+<option value="13.361,100.984">ชลบุรี</option>
+<option value="7.880,98.392">ภูเก็ต</option>
+<option value="16.432,102.823">ขอนแก่น</option>
+</select>
+
+<div class="icon" id="icon">⏳</div>
+<div class="aqi" id="aqi">--</div>
+<div id="level">กำลังโหลด...</div>
+
+<div class="bar"><div class="marker" id="marker"></div></div>
+
+<canvas id="chart"></canvas>
+
+</div>
+
+<script>
+
+let chart = new Chart(document.getElementById("chart"),{
+type:"line",
+data:{
+labels:new Array(24).fill(""),
+datasets:[{
+label:"PM2.5 ย้อนหลัง 24 ชม.",
+data:[],
+borderWidth:2,
+tension:.4
+}]
+},
+options:{
+plugins:{legend:{labels:{color:"#fff"}}},
+scales:{
+y:{ticks:{color:"#fff"}},
+x:{ticks:{color:"#fff"}}
+}
+}
+})
+
+function getLevel(pm){
+if(pm<=25)return["ดีมาก","😃","#00e400"]
+if(pm<=50)return["ดี","🙂","#ffff00"]
+if(pm<=100)return["ปานกลาง","😐","#ff7e00"]
+if(pm<=200)return["เริ่มมีผลกระทบ","😷","#ff0000"]
+return["อันตราย","☠️","#8f3f97"]
+}
+
+async function loadData(){
+
+document.getElementById("level").innerText="กำลังโหลด..."
+document.getElementById("icon").innerText="⏳"
+
+try{
+
+const val = document.getElementById("province").value
+const [lat,lon] = val.split(",")
+
+const url = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lon}&hourly=pm2_5`
+
+const res = await fetch(url)
+
+if(!res.ok) throw new Error()
+
+const data = await res.json()
+
+if(!data.hourly || !data.hourly.pm2_5){
+showNoData()
+return
+}
+
+const valid = data.hourly.pm2_5.filter(v => v !== null)
+
+if(valid.length === 0){
+showNoData()
+return
+}
+
+    const pm = valid[valid.length-1]
+
+    updateUI(pm, valid.slice(-24))
+
+    }catch{
+    showError()
+    }
+
+    }
+
+    function showNoData(){
+    document.getElementById("aqi").innerText="--"
+    document.getElementById("level").innerText="ไม่มีข้อมูลพื้นที่นี้"
+    document.getElementById("icon").innerText="❌"
+    }
+
+    function showError(){
+    document.getElementById("aqi").innerText="--"
+    document.getElementById("level").innerText="โหลดข้อมูลไม่สำเร็จ"
+    document.getElementById("icon").innerText="⚠️"
+    }
+
+    function updateUI(pm,history){
+
+    document.getElementById("aqi").innerText = pm.toFixed(1)
+
+    const [text,icon,color] = getLevel(pm)
+
+    document.getElementById("level").innerText = text
+    document.getElementById("icon").innerText = icon
+
+    document.body.style.background = color+"33"
+
+    document.getElementById("marker").style.left =
+    (Math.min(pm,300)/300*100)+"%"
+
+    chart.data.datasets[0].data = history
+    chart.update()
+
+    }
+
+    document.getElementById("province").onchange = loadData
+
+    loadData()
+    setInterval(loadData,300000)
+
+</script>
+
+</body>
+</html>
